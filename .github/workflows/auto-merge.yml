@@ -1,0 +1,57 @@
+name: Auto Merge Pull Request
+
+on:
+  pull_request:
+    types:
+      - ready_for_review
+      - review_request_removed
+      - review_requested
+      - synchronize
+      - unlabeled
+
+jobs:
+  auto_merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if PR is ready to merge
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const core = require('@actions/core');
+            const github = require('@actions/github').getOctokit(core.getInput('github-token'));
+            const { pull_request } = github.context.payload;
+            const { number, base, head } = pull_request;
+
+            const checks = await github.rest.checks.listCheckRunsForRef({
+              owner: github.context.repo.owner,
+              repo: github.context.repo.repo,
+              ref: head.ref,
+              check_name: 'CI', // Replace with your CI check name
+            });
+
+            if (checks.data.total_count === 0 || checks.data.check_runs.some(check => check.status !== 'completed' || check.conclusion !== 'success')) {
+              core.info('PR has pending checks, not merging.');
+              core.setFailed('PR has pending checks, not merging.');
+              return;
+            }
+
+            const approvals = await github.rest.pulls.listReviews({
+              owner: github.context.repo.owner,
+              repo: github.context.repo.repo,
+              pull_number: number,
+            });
+
+            if (approvals.data.some(review => review.state === 'approved')) {
+              await github.rest.pulls.merge({
+                owner: github.context.repo.owner,
+                repo: github.context.repo.repo,
+                pull_number: number,
+                merge_method: 'merge', // or 'squash' or 'rebase'
+              });
+              core.info('PR merged successfully!');
+            } else {
+              core.info('PR does not have required approvals, not merging.');
+              core.setFailed('PR does not have required approvals, not merging.');
+              return;
+            }
