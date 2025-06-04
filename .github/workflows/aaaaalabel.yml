@@ -9,7 +9,7 @@ jobs:
     - uses: actions/labeler@v1
       with:
         # This will label all pull requests with the "example" label.
-        labels: "example"
+        labels: "automerge"
         # Uncomment and configure to use other criteria like changed files or branches
         # Changed files:
         # changed-files:
