@@ -1,0 +1,22 @@
+name: Add Label to Pull Requests
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+jobs:
+  label_pr:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/labeler@v1
+      with:
+        # This will label all pull requests with the "example" label.
+        labels: "example"
+        # Uncomment and configure to use other criteria like changed files or branches
+        # Changed files:
+        # changed-files:
+        #   - any-glob-to-any-file: 'path/to/file.ext'
+        # Base branch:
+        # base-branch:
+        #   - any: 'main'
+        # Head branch:
+        # head-branch:
+        #   - any: 'feature/*'
