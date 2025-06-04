@@ -1,18 +1,45 @@
-name: Auto Label PRs
+name: Auto Label & Merge
 
 on:
   pull_request:
     types: [opened]
 
 jobs:
-  add-label:
+  label-and-maybe-merge:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      contents: write
 
     steps:
-      - name: Add 'automerge' label to new PRs
+      - name: Add 'automerge' label
         uses: actions-ecosystem/action-add-labels@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           labels: automerge
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check changed files
+        id: file-check
+        run: |
+          changed_files=$(git diff --name-only origin/${{ github.base_ref }} HEAD)
+          echo "Changed files:"
+          echo "$changed_files"
+
+          if echo "$changed_files" | grep -qE '^\.github/|^README\.md$'; then
+            echo "::notice ::PR changes restricted files. Skipping merge."
+            echo "skip_merge=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip_merge=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Merge PR
+        if: steps.file-check.outputs.skip_merge == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge ${{ github.event.pull_request.html_url }} --merge --auto
