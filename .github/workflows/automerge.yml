@@ -1,19 +1,21 @@
-name: automerge
+name: Auto Merge on Label
+
 on:
-  workflow_run:
-    workflows: [ "add-label" ]
+  pull_request:
     types:
-      - completed
+      - labeled
+
 jobs:
   automerge:
+    if: github.event.label.name == 'automerge'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
       pull-requests: write
+      contents: write
+
     steps:
-      - id: automerge
-        name: automerge
-        uses: "pascalgn/automerge-action@v0.16.4"
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          MERGE_LABELS: "automerge"
+      - name: Auto-merge PR
+        uses: "peter-evans/enable-pull-request-automerge@v3"
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          merge-method: squash
