@@ -1,22 +1,18 @@
-name: Add Label to Pull Requests
+name: Auto Label PRs
+
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened]
+
 jobs:
-  label_pr:
+  add-label:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write  # Required to add labels
+
     steps:
-    - uses: actions/labeler@v1
-      with:
-        # This will label all pull requests with the "example" label.
-        labels: "automerge"
-        # Uncomment and configure to use other criteria like changed files or branches
-        # Changed files:
-        # changed-files:
-        #   - any-glob-to-any-file: 'path/to/file.ext'
-        # Base branch:
-        # base-branch:
-        #   - any: 'main'
-        # Head branch:
-        # head-branch:
-        #   - any: 'feature/*'
+      - name: Add 'automerge' label to new PRs
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          labels: automerge
