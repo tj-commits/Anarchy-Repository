@@ -4,44 +4,75 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  pull-requests: write
+  contents: write
+
 jobs:
-  label-and-maybe-merge:
+  label-and-process:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: write
 
     steps:
+      # ✅ Step 1: Automatically add 'automerge' label
       - name: Add 'automerge' label
         uses: actions-ecosystem/action-add-labels@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           labels: automerge
 
+      # ✅ Step 2: Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for accurate git diff
+          fetch-depth: 0  # Needed for full commit history comparison
 
+      # ✅ Step 3: Check if PR touches restricted files
       - name: Check changed files
         id: file-check
         run: |
-          base_sha="${{ github.event.pull_request.base.sha }}"
-          echo "Comparing against base commit: $base_sha"
-
-          changed_files=$(git diff --name-only "$base_sha"...HEAD)
+          echo "Base SHA: ${{ github.event.pull_request.base.sha }}"
+          changed_files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD)
           echo "$changed_files"
 
           if echo "$changed_files" | grep -qE '^\.github/|^README\.md$'; then
-            echo "::notice ::PR modifies .github or README.md — skipping merge."
+            echo "::notice ::Restricted files modified — skipping merge and closing PR."
             echo "skip_merge=true" >> $GITHUB_OUTPUT
           else
             echo "skip_merge=false" >> $GITHUB_OUTPUT
           fi
 
+      # ✅ Step 4: Merge the PR if it's safe
       - name: Merge PR
         if: steps.file-check.outputs.skip_merge == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr merge ${{ github.event.pull_request.html_url }} --merge --auto
+
+      # ❌ Step 5: Remove label if merge is skipped
+      - name: Remove 'automerge' label
+        if: steps.file-check.outputs.skip_merge == 'true'
+        uses: actions-ecosystem/action-remove-labels@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          labels: automerge
+
+      # 💬 Step 6: Comment reason
+      - name: Comment on PR
+        if: steps.file-check.outputs.skip_merge == 'true'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ⚠️ This pull request was automatically closed because it modifies restricted files.
+
+            You **may not** change `README.md` because people need to know what this repo is alr?
+
+      # 🛑 Step 7: Close PR
+      - name: Close PR
+        if: steps.file-check.outputs.skip_merge == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr close ${{ github.event.pull_request.number }}
