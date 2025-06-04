@@ -1,8 +1,8 @@
-name: Auto Label & Merge
+name: Auto Label and Merge PRs
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, synchronize, reopened]
 
 jobs:
   label-and-maybe-merge:
@@ -26,12 +26,14 @@ jobs:
       - name: Check changed files
         id: file-check
         run: |
+          # Get list of changed files between base and HEAD
           changed_files=$(git diff --name-only origin/${{ github.base_ref }} HEAD)
           echo "Changed files:"
           echo "$changed_files"
 
+          # Check if any restricted files were modified
           if echo "$changed_files" | grep -qE '^\.github/|^README\.md$'; then
-            echo "::notice ::PR changes restricted files. Skipping merge."
+            echo "::notice ::PR modifies .github or README.md — skipping merge."
             echo "skip_merge=true" >> $GITHUB_OUTPUT
           else
             echo "skip_merge=false" >> $GITHUB_OUTPUT
