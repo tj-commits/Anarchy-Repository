@@ -21,17 +21,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0  # Full history for accurate git diff
 
       - name: Check changed files
         id: file-check
         run: |
-          # Get list of changed files between base and HEAD
-          changed_files=$(git diff --name-only origin/${{ github.base_ref }} HEAD)
-          echo "Changed files:"
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          echo "Comparing against base commit: $base_sha"
+
+          changed_files=$(git diff --name-only "$base_sha"...HEAD)
           echo "$changed_files"
 
-          # Check if any restricted files were modified
           if echo "$changed_files" | grep -qE '^\.github/|^README\.md$'; then
             echo "::notice ::PR modifies .github or README.md — skipping merge."
             echo "skip_merge=true" >> $GITHUB_OUTPUT
