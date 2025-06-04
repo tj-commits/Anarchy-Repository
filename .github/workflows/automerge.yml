@@ -1,7 +1,7 @@
 name: automerge
 on:
   workflow_run:
-    workflows: [automerge]
+    workflows: [label_pr]
     types:
       - completed
 jobs:
