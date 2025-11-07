@@ -14,7 +14,7 @@ jobs:
 
     steps:
       # ✅ 1. Checkout the BASE (safe) code for running the workflow context
-      # This step sets up the comparison point (the base branch's state).
+      # This sets the local repository to the state of the target branch (e.g., main).
       - name: Checkout Base Code
         uses: actions/checkout@v4
         with:
@@ -22,30 +22,33 @@ jobs:
           fetch-depth: 0
 
       # ✅ 2. Fetch the HEAD (PR changes) securely for comparison
-      # We explicitly fetch the PR's head commit, which contains the files to check.
+      # This step brings the PR's commits into the local history for comparison.
       - name: Fetch PR Changes for Comparison
         run: |
           # Fetch the head commit from the PR fork
           git fetch origin ${{ github.event.pull_request.head.sha }}
-          # Check out the head commit, replacing the base commit files
-          git checkout -f ${{ github.event.pull_request.head.sha }}
-
-      # ✅ 3. Add 'automerge' label (This step needs WRITE permission and should work now)
+          
+      # ✅ 3. Add 'automerge' label
       - name: Add 'automerge' label
         uses: actions-ecosystem/action-add-labels@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           labels: automerge
 
-      # ✅ 4. Check if PR touches restricted files
+      # ✅ 4. Check if PR touches restricted files (FIXED LOGIC)
       - name: Check changed files
         id: file-check
         run: |
-          # Use the SHAs to compare the files that were just fetched.
-          changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
-          echo "Changed Files: $changed_files"
+          # Use git log --not to reliably list files introduced in the PR branch.
+          # This is the most accurate way to get the PR's changed files in this secure context.
+          changed_files=$(git log --no-merges --name-only --format="" ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | sort -u)
+          echo "Changed Files in PR: $changed_files"
 
-          if echo "$changed_files" | grep -qE '^\.github/|^README\.md$'; then
+          # Define the restricted file pattern
+          RESTRICTED_PATTERN='^(\.github\/|README\.md$)'
+          
+          # Check if any changed file matches the restricted pattern
+          if echo "$changed_files" | grep -qE "$RESTRICTED_PATTERN"; then
             echo "::notice ::Restricted files modified — skipping merge and closing PR."
             echo "skip_merge=true" >> $GITHUB_OUTPUT
           else
