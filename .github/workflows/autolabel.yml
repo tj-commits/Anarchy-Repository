@@ -1,11 +1,11 @@
 name: Auto Label and Merge PRs
 
 on:
-  pull_request_target: # Necessary for WRITE permissions on labels/merge
+  pull_request_target: # Necessary for WRITE permissions (labels, merge, close)
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: read # Required for actions/checkout@v4
+  contents: read # Required for actions/checkout@v4 and reading history
   pull-requests: write # Required for labels, merge, and close
 
 jobs:
@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ✅ 1. Checkout the BASE (safe) code for running the workflow context
-      # This sets the local repository to the state of the target branch (e.g., main).
+      # ✅ 1. Checkout the BASE (safe) code
+      # This step sets the local repository to the state of the target branch (e.g., main).
       - name: Checkout Base Code
         uses: actions/checkout@v4
         with:
@@ -22,25 +22,23 @@ jobs:
           fetch-depth: 0
 
       # ✅ 2. Fetch the HEAD (PR changes) securely for comparison
-      # This step brings the PR's commits into the local history for comparison.
+      # This brings the PR's commits into the local history for comparison.
       - name: Fetch PR Changes for Comparison
         run: |
-          # Fetch the head commit from the PR fork
           git fetch origin ${{ github.event.pull_request.head.sha }}
           
       # ✅ 3. Add 'automerge' label
       - name: Add 'automerge' label
         uses: actions-ecosystem/action-add-labels@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }} # Default token works for labeling
           labels: automerge
 
-      # ✅ 4. Check if PR touches restricted files (FIXED LOGIC)
+      # ✅ 4. Check if PR touches restricted files (Robust Logic)
       - name: Check changed files
         id: file-check
         run: |
           # Use git log --not to reliably list files introduced in the PR branch.
-          # This is the most accurate way to get the PR's changed files in this secure context.
           changed_files=$(git log --no-merges --name-only --format="" ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | sort -u)
           echo "Changed Files in PR: $changed_files"
 
@@ -55,11 +53,12 @@ jobs:
             echo "skip_merge=false" >> $GITHUB_OUTPUT
           fi
 
-      # ✅ 5. Merge the PR if it's safe
+      # ✅ 5. Merge the PR if it's safe (Uses PAT for permissions)
       - name: Merge PR
         if: steps.file-check.outputs.skip_merge == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # REQUIRED FIX: Use the powerful PAT for merging external PRs
+          GH_TOKEN: ${{ secrets.GH_PAT_MERGE }} 
         run: |
           gh pr merge ${{ github.event.pull_request.number }} --merge --auto
 
@@ -83,10 +82,11 @@ jobs:
 
             You **may not** change `README.md` because people need to know what this repo is alr?
 
-      # 🛑 8. Close PR
+      # 🛑 8. Close PR (Uses PAT for permissions)
       - name: Close PR
         if: steps.file-check.outputs.skip_merge == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # REQUIRED FIX: Use the powerful PAT for closing external PRs
+          GH_TOKEN: ${{ secrets.GH_PAT_MERGE }}
         run: |
           gh pr close ${{ github.event.pull_request.number }}
